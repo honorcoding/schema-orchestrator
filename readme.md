@@ -7,7 +7,12 @@ Schema Orchestrator coordinates all schema components on the site, ensuring that
 Think of the Schema Orchestrator as the traffic controller for your site's structured data. It makes sure all schema pieces are connected correctly, prevents conflicts, and delivers a clean, organized schema graph to Google.
 
 
-## How It Works
+## Register a Node While Editing a Post 
+
+### ... still developing ... add instructions here once complete ... 
+
+
+## How Plugins Can Register Nodes 
 
 ### Any plugin can register a node 
 
