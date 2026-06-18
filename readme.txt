@@ -1,6 +1,17 @@
-1. HOW THE SCHEMA-ORCHESTRATOR WORKS: 
+# Schema Orchestrator
 
-// ANY PLUGIN CAN REGISTER THE NODE 
+## Purpose 
+
+Schema Orchestrator coordinates all schema components on the site, ensuring that individual schema types work together as a unified graph. It determines which schema nodes should be included, how they are connected, and what is ultimately output on the page.
+
+Think of the Schema Orchestrator as the traffic controller for your site's structured data. It makes sure all schema pieces are connected correctly, prevents conflicts, and delivers a clean, organized schema graph to Google.
+
+
+## How It Works
+
+### Any plugin can register a node 
+
+```
 add_action(
     'schema_orchestrator_register',
     function () {
@@ -19,9 +30,11 @@ add_action(
         );
     }
 );
+```
 
+### Then later, output the results 
 
-// THEN LATER, OUTPUT THE RESULTS 
+```
 add_action( 
     'wp_footer', 
     function () {
@@ -34,9 +47,11 @@ add_action(
         echo '</pre>';
     }
 );
+```
 
+### The output
 
-// THE OUTPUT: 
+```
 Array
 (
     [0] => Array
@@ -45,6 +60,6 @@ Array
             [@id] => https://example.com/post/#faq
         )
 )
-
+```
 
 
