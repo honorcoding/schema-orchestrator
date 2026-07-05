@@ -32,7 +32,7 @@ define('SCHEMA_ORCHESTRATOR_LOG_PATH', SCHEMA_ORCHESTRATOR_PATH . 'logs/');
 // ------------------------------------------
 
 require_once SCHEMA_ORCHESTRATOR_PATH . 'includes/debug/class-debugger.php';
-function debugger() {   
+function so_debug() {   
     $debugger = \SCHEMA_ORCHESTRATOR\Debugger::instance();    
     $debugger->set_log_path( SCHEMA_ORCHESTRATOR_LOG_PATH . 'debug.log' );
     return $debugger;    

@@ -246,7 +246,7 @@ print_r($debug);
             );
         } else { 
 
-            debugger->log(
+            so_debug()->log(
                     '[Schema Orchestrator] Invalid JSON on post '
                     . $post_id
                 );
@@ -294,9 +294,7 @@ print_r($debug);
             );
 
         wp_send_json_success([
-            'debug' => Schema_Orchestrator::debug(
-                $post_id
-            ),
+            'debug' => Schema_Orchestrator::debug(),
             'graph' => $graph,
         ]);
     }

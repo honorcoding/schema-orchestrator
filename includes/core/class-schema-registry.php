@@ -51,7 +51,7 @@ class Schema_Registry {
 
             } catch (\Throwable $e) {
 
-                debugger->log(
+                so_debug()->log(
                     sprintf(
                         '[Schema Orchestrator] Node "%s" failed: %s',
                         $name,

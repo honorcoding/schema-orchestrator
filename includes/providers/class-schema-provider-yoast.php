@@ -87,7 +87,7 @@ class Schema_Provider_Yoast
 
         } catch (\Throwable $e) {
 
-            debugger->log(
+            so_debug()->log(
                 '[Schema Orchestrator] Yoast provider: '
                 . $e->getMessage()
             );

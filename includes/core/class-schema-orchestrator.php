@@ -186,7 +186,7 @@ class Schema_Orchestrator {
                     $provider->get_name()
                 ] = 'ERROR';
 
-                debugger->log(
+                so_debug()->log(
                     sprintf(
                         '[Schema Orchestrator] Provider "%s" failed: %s',
                         $provider->get_name(),
