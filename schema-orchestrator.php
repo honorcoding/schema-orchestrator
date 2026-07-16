@@ -44,7 +44,6 @@ function so_debug() {
  * load core schema resources 
  */
 
-require_once SCHEMA_ORCHESTRATOR_PATH . 'includes/debug/class-debugger.php';
 require_once SCHEMA_ORCHESTRATOR_PATH . 'includes/core/class-schema-registry.php';
 require_once SCHEMA_ORCHESTRATOR_PATH . 'includes/core/class-schema-overrides.php';
 require_once SCHEMA_ORCHESTRATOR_PATH . 'includes/core/class-schema-orchestrator.php';
@@ -69,4 +68,4 @@ if ( is_admin() ) {
  * load test tools 
  */
 
-require_once SCHEMA_ORCHESTRATOR_PATH . 'test.php';
+//require_once SCHEMA_ORCHESTRATOR_PATH . 'test.php';

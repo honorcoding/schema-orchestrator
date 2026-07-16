@@ -1,11 +1,6 @@
 <?php
 
-add_filter(
-    'schema_orchestrator_additional_nodes',
-    'add_additional_nodes',
-    10,
-    2
-); 
+add_filter( 'schema_orchestrator_additional_nodes', 'add_additional_nodes', 10, 2 ); 
 function add_additional_nodes( $nodes, $post_id ) {
 
         $nodes[] = [

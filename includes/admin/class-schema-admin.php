@@ -3,8 +3,7 @@
  * Schema Admin
  */
 
-
-if (!defined('ABSPATH')) {
+if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
@@ -12,25 +11,10 @@ class Schema_Admin {
 
     public function __construct() {
 
-        add_action(
-            'add_meta_boxes',
-            [$this, 'register_meta_box']
-        );
-
-        add_action(
-            'save_post',
-            [$this, 'save_post']
-        );
-
-        add_action(
-            'admin_enqueue_scripts',
-            [$this, 'enqueue_assets']
-        );
-
-        add_action(
-            'wp_ajax_schema_orchestrator_preview',
-            [$this, 'ajax_preview']
-        );
+        add_action( 'add_meta_boxes', [ $this, 'register_meta_box' ] );
+        add_action( 'save_post', [ $this, 'save_post' ] );
+        add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_assets' ] );
+        add_action( 'wp_ajax_schema_orchestrator_preview', [ $this, 'ajax_preview' ] );
     }
 
     /**
@@ -38,25 +22,20 @@ class Schema_Admin {
      */
     public function register_meta_box(): void {
 
-        $post_types = get_post_types(
-            [
-                'public' => true
-            ]
-        );
+        $post_types = get_post_types( [ 'public' => true ] );
 
-        foreach ($post_types as $post_type) {
+        foreach ( $post_types as $post_type ) {
 
             add_meta_box(
                 'schema_orchestrator',
-                __('Schema Orchestrator', 'schema-orchestrator'),
-                [$this, 'render_meta_box'],
+                __( 'Schema Orchestrator', 'schema-orchestrator' ),
+                [ $this, 'render_meta_box' ],
                 $post_type,
                 'normal',
                 'default'
             );
         }
-        
-    }   
+    }
 
     /**
      * Enqueue admin JS.
@@ -75,12 +54,8 @@ class Schema_Admin {
             'schema-orchestrator-admin',
             'SchemaOrchestrator',
             [
-                'ajax_url' => admin_url(
-                    'admin-ajax.php'
-                ),
-                'nonce' => wp_create_nonce(
-                    'schema_orchestrator_preview'
-                ),
+                'ajax_url' => admin_url( 'admin-ajax.php' ),
+                'nonce'    => wp_create_nonce( 'schema_orchestrator_preview' ),
             ]
         );
     }
@@ -88,28 +63,16 @@ class Schema_Admin {
     /**
      * Render metabox.
      */
-    public function render_meta_box(
-        WP_Post $post
-    ): void {
+    public function render_meta_box( WP_Post $post ): void {
 
-        wp_nonce_field(
-            'schema_orchestrator_save',
-            'schema_orchestrator_nonce'
-        );
+        wp_nonce_field( 'schema_orchestrator_save', 'schema_orchestrator_nonce' );
 
-        $overrides =
-            Schema_Overrides::get(
-                $post->ID
-            );
+        $overrides = Schema_Overrides::get( $post->ID );
 
         ?>
-        
+
         <p>
-            <button
-                type="button"
-                class="button"
-                id="schema-orchestrator-preview"
-            >
+            <button type="button" class="button" id="schema-orchestrator-preview">
                 Preview Schema
             </button>
         </p>
@@ -119,15 +82,14 @@ class Schema_Admin {
             <strong>Debug</strong>
 
             <pre>
-<?php 
-$debug =
-    Schema_Orchestrator::debug();
+<?php
 
-unset(
-    $debug['graph']
-);
+$debug = Schema_Orchestrator::debug();
 
-print_r($debug);
+unset( $debug['graph'] );
+
+print_r( $debug );
+
 ?>
             </pre>
 
@@ -145,8 +107,7 @@ print_r($debug);
         echo esc_textarea(
             wp_json_encode(
                 $overrides,
-                JSON_PRETTY_PRINT |
-                JSON_UNESCAPED_SLASHES
+                JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES
             )
         );
 
@@ -168,91 +129,44 @@ print_r($debug);
     /**
      * Save overrides.
      */
-    public function save_post(
-        int $post_id
-    ): void {
+    public function save_post( int $post_id ): void {
 
-        if (
-            !isset(
-                $_POST[
-                    'schema_orchestrator_nonce'
-                ]
-            )
-        ) {
+        if ( ! isset( $_POST['schema_orchestrator_nonce'] ) ) {
             return;
         }
 
-        if (
-            !wp_verify_nonce(
-                $_POST[
-                    'schema_orchestrator_nonce'
-                ],
-                'schema_orchestrator_save'
-            )
-        ) {
+        if ( ! wp_verify_nonce( $_POST['schema_orchestrator_nonce'], 'schema_orchestrator_save' ) ) {
             return;
         }
 
-        if (
-            defined('DOING_AUTOSAVE')
-            && DOING_AUTOSAVE
-        ) {
+        if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
             return;
         }
 
-        if (
-            !current_user_can(
-                'edit_post',
-                $post_id
-            )
-        ) {
+        if ( ! current_user_can( 'edit_post', $post_id ) ) {
             return;
         }
 
-        $json = wp_unslash(
-            $_POST[
-                'schema_orchestrator_overrides'
-            ] ?? ''
-        );
+        $json = wp_unslash( $_POST['schema_orchestrator_overrides'] ?? '' );
 
-        if (trim($json) === '') {
+        if ( trim( $json ) === '' ) {
 
-            delete_post_meta(
-                $post_id,
-                Schema_Overrides::META_KEY
-            );
+            delete_post_meta( $post_id, Schema_Overrides::META_KEY );
 
             return;
         }
 
-        $json = wp_unslash(
-            $_POST[
-                'schema_orchestrator_overrides'
-            ]
-        );
+        $decoded = json_decode( $json, true );
 
-        $decoded = json_decode(
-            $json,
-            true
-        );
+        if ( json_last_error() === JSON_ERROR_NONE ) {
 
-        if (
-            json_last_error()
-            === JSON_ERROR_NONE
-        ) {
-            Schema_Overrides::save(
-                $post_id,
-                $decoded
-            );
-        } else { 
+            Schema_Overrides::save( $post_id, $decoded );
 
-            so_debug()->log(
-                    '[Schema Orchestrator] Invalid JSON on post '
-                    . $post_id
-                );
+        } else {
 
-            return;            
-            
+            so_debug()->log( '[Schema Orchestrator] Invalid JSON on post ' . $post_id );
+
+            return;
         }
     }
 
@@ -261,41 +175,27 @@ print_r($debug);
      */
     public function ajax_preview(): void {
 
-        check_ajax_referer(
-            'schema_orchestrator_preview',
-            'nonce'
-        );
+        check_ajax_referer( 'schema_orchestrator_preview', 'nonce' );
 
-        $post_id = absint(
-            $_POST['post_id'] ?? 0
-        );
-        
-        if (!$post_id) {
+        $post_id = absint( $_POST['post_id'] ?? 0 );
 
-            wp_send_json_error(
-                ['message' => 'Invalid post']
-            );
+        if ( ! $post_id ) {
+
+            wp_send_json_error( [ 'message' => 'Invalid post' ] );
         }
 
-        if (
-            !current_user_can(
-                'edit_post',
-                $post_id
-            )
-        ) {
-            wp_send_json_error([
-                'message' => 'Permission denied'
-            ]);
-        }        
+        if ( ! current_user_can( 'edit_post', $post_id ) ) {
 
-        $graph =
-            Schema_Orchestrator::get_graph(
-                $post_id
-            );
+            wp_send_json_error( [ 'message' => 'Permission denied' ] );
+        }
 
-        wp_send_json_success([
-            'debug' => Schema_Orchestrator::debug(),
-            'graph' => $graph,
-        ]);
+        $graph = Schema_Orchestrator::get_graph( $post_id );
+
+        wp_send_json_success(
+            [
+                'debug' => Schema_Orchestrator::debug(),
+                'graph' => $graph,
+            ]
+        );
     }
 }
