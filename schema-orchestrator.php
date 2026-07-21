@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Schema Orchestrator
  * Description: Schema orchestration framework for WordPress. Works with YoastSEO plugin.
- * Version: 1.2.0
+ * Version: 1.2.1
  * Author: Honor Coding
  * Author URI: https://honorcoding.com 
  */

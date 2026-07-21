@@ -57,7 +57,7 @@ if ( ! class_exists( 'Schema_Settings') ) :
                             "contactPoint": {
                                 "@type": "ContactPoint",
                                 "contactType": "customer service",
-                                "email": "asdn@ptialaska.net",
+                                "email": "asdn@alaskaacsa.org",
                                 "telephone": "+1-907-364-3809",
                                 "areaServed": "US-AK"
                             },

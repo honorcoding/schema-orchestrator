@@ -47,10 +47,10 @@ if ( ! class_exists( 'Schema_Settings_Page' ) ):
             ?>
                 <section>
                     
-                    <h2>Organization</h2>
+                    <h2>Global Schema (Used on every page)</h2>
 
                     <div class="field">
-                        <label for="organization_schema">Organization Schema</label>
+                        <label for="organization_schema">Schema JSON</label>
                         <textarea id="organization_schema" name="organization_schema"><?php echo esc_textarea( $schema['organization'] ?? '' ); ?></textarea>
                     </div>
                     
