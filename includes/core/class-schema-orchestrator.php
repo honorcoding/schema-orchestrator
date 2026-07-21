@@ -4,6 +4,12 @@
  * Core engine.
  */
 
+namespace Schema_Orchestrator;
+use Schema_Orchestrator\Schema_Provider_Interface;
+use Schema_Orchestrator\Schema_Registry;
+use Schema_Orchestrator\Schema_Overrides;
+
+
 if (!defined('ABSPATH')) {
     exit;
 }

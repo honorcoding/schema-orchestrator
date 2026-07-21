@@ -5,6 +5,9 @@
  */
 
 
+namespace Schema_Orchestrator;
+
+
 if (!defined('ABSPATH')) {
     exit;
 }

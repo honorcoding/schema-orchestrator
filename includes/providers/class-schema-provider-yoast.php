@@ -8,6 +8,9 @@
  * Replace with stable provider implementation.
  */
 
+namespace Schema_Orchestrator;
+
+
 if (!defined('ABSPATH')) {
     exit;
 }

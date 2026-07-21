@@ -4,6 +4,8 @@
  * All schema providers must implement this.
  */
 
+namespace Schema_Orchestrator;
+
 if (!defined('ABSPATH')) {
     exit;
 }

@@ -1,3 +1,7 @@
+// =========================================
+// admin.js - javascript for admin pages
+// =========================================
+
 document.addEventListener(
     'DOMContentLoaded',
     function () {

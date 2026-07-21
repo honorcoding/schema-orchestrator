@@ -1,0 +1,88 @@
+/* =========================================
+// admin.css - css for admin pages
+========================================== */
+
+
+/* -----------------------------------------
+  ADMIN PAGES 
+----------------------------------------- */
+
+/* messages */
+
+.so-admin-messages {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.so-admin-message, 
+.so-admin-message.success {
+    background: #fff;
+    border: none;
+    border-left: 4px solid #12a712;
+    box-shadow: none;
+    padding: 8px 12px;    
+}
+.so-admin-message.error { 
+    border-left-color: #cc1818;
+    background-color: #fcf0f0;
+}
+.so-admin-message.warning {
+    border-left-color: #f0b849;
+    background-color: #fef8ee;
+}
+
+
+/* sections */
+
+.so-admin-settings-page section {
+    display: flex;
+    flex-direction: column; 
+    gap: 10px;
+    padding: 0 15px 15px 15px;
+    border: solid 1px #ccc;
+    border-radius: 10px;
+}
+
+.so-admin-settings-page h2 {
+    font-size: 1.6em;
+}
+
+.so-admin-settings-page section .field {
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-start;
+    align-items: center;
+}
+.so-admin-settings-page section .field .padding {
+    padding-top: 25px;
+}
+
+.so-admin-settings-page section .field label {
+    flex: 0 0 100px;
+}
+.so-admin-settings-page section .field input {
+    flex: 0 1 200px;
+}
+
+.so-admin-settings-page section .field textarea {
+    width: 100%;
+    height: 350px;
+}
+
+.so-admin-settings-page section .field button {
+    flex: 0 0 auto;
+    padding: 0.5rem 1.5rem !important;
+    background: #31c8d1;
+    border: solid 2px #31c8d1; 
+    border-radius: 2.5rem;
+    color: #fff !important;
+    font-weight: bold !important; 
+    margin-right: 10px;
+}
+.so-admin-settings-page section .field button:hover {
+    border: solid 2px #31c8d1;
+    background: #fff;
+    color: #31c8d1 !important;
+}

@@ -3,17 +3,21 @@
  * Schema Admin
  */
 
+namespace Schema_Orchestrator\Admin;
+use Schema_Orchestrator\Schema_Overrides;
+
+
 if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-class Schema_Admin {
+class Admin_Single_Page {
 
     public function __construct() {
 
         add_action( 'add_meta_boxes', [ $this, 'register_meta_box' ] );
         add_action( 'save_post', [ $this, 'save_post' ] );
-        add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_assets' ] );
+        //add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_assets' ] );
         add_action( 'wp_ajax_schema_orchestrator_preview', [ $this, 'ajax_preview' ] );
     }
 
@@ -63,14 +67,14 @@ class Schema_Admin {
     /**
      * Render metabox.
      */
-    public function render_meta_box( WP_Post $post ): void {
+    public function render_meta_box( \WP_Post $post ): void {
 
         wp_nonce_field( 'schema_orchestrator_save', 'schema_orchestrator_nonce' );
 
         $overrides = Schema_Overrides::get( $post->ID );
 
+        /*
         ?>
-
         <p>
             <button type="button" class="button" id="schema-orchestrator-preview">
                 Preview Schema
@@ -82,21 +86,23 @@ class Schema_Admin {
             <strong>Debug</strong>
 
             <pre>
-<?php
+                <?php
 
-$debug = Schema_Orchestrator::debug();
+                $debug = Schema_Orchestrator::debug();
 
-unset( $debug['graph'] );
+                unset( $debug['graph'] );
 
-print_r( $debug );
+                print_r( $debug );
 
-?>
+                ?>
             </pre>
 
         </div>
-
+        */
+        ?>
+        
         <p>
-            <strong>Overrides JSON</strong>
+            <strong>JSON-LD Overrides</strong>
         </p>
 
         <textarea
@@ -113,6 +119,7 @@ print_r( $debug );
 
         ?></textarea>
 
+        <?php /*
         <p>
             <strong>Preview Output</strong>
         </p>
@@ -124,6 +131,8 @@ print_r( $debug );
         ></textarea>
 
         <?php
+         * 
+         */
     }
 
     /**

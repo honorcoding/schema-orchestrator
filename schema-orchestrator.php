@@ -4,6 +4,7 @@
  * Description: Schema orchestration framework for WordPress. Works with YoastSEO plugin.
  * Version: 1.1.0
  * Author: Honor Coding
+ * Author URI: https://honorcoding.com 
  */
 
 if (!defined('ABSPATH')) {
@@ -12,9 +13,10 @@ if (!defined('ABSPATH')) {
 
 
 
-/**
- * define plugin constants 
- */
+// ------------------------------------------
+// PLUGIN CONSTANTS
+// ------------------------------------------
+
 define( 'SCHEMA_ORCHESTRATOR_PATH', plugin_dir_path(__FILE__) );
 define( 'SCHEMA_ORCHESTRATOR_URL', plugin_dir_url(__FILE__) );
 
@@ -23,49 +25,36 @@ define('SCHEMA_ORCHESTRATOR_LOG_PATH', SCHEMA_ORCHESTRATOR_PATH . 'logs/');
 
 
 
-/** 
- * load debugging tools 
- */
-
 // ------------------------------------------
-// DEBUG TOOLS 
+// PLUGIN CONFIG 
 // ------------------------------------------
 
-require_once SCHEMA_ORCHESTRATOR_PATH . 'includes/debug/class-debugger.php';
-function so_debug() {   
-    $debugger = \SCHEMA_ORCHESTRATOR\Debugger::instance();    
-    $debugger->set_log_path( SCHEMA_ORCHESTRATOR_LOG_PATH . 'debug.log' );
-    return $debugger;    
-}
+require_once SCHEMA_ORCHESTRATOR_PATH . 'includes/config.php';
 
 
 
-/**
- * load core schema resources 
- */
+// ------------------------------------------
+// CORE SCHEMA RESOURCES
+// ------------------------------------------
 
-require_once SCHEMA_ORCHESTRATOR_PATH . 'includes/core/class-schema-registry.php';
-require_once SCHEMA_ORCHESTRATOR_PATH . 'includes/core/class-schema-overrides.php';
-require_once SCHEMA_ORCHESTRATOR_PATH . 'includes/core/class-schema-orchestrator.php';
-Schema_Orchestrator::instance();
+require_once SCHEMA_ORCHESTRATOR_PATH . 'includes/core/config.php';
 
 
 
-/**
- * load admin resources 
- */
+// ------------------------------------------
+// ADMIN RESOURCES
+// ------------------------------------------
 
 if ( is_admin() ) { 
     
-    require_once SCHEMA_ORCHESTRATOR_PATH . 'includes/admin/class-schema-admin.php';
-    new Schema_Admin();
+    require_once SCHEMA_ORCHESTRATOR_PATH . 'includes/admin/admin.php';
 
 }
 
 
 
-/**
- * load test tools 
- */
+// ------------------------------------------
+// TESTING RESOURCES
+// ------------------------------------------
 
-//require_once SCHEMA_ORCHESTRATOR_PATH . 'test.php';
+//require_once SCHEMA_ORCHESTRATOR_PATH . 'includes/qa/test.php';
