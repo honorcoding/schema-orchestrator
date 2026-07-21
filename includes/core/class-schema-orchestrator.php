@@ -246,6 +246,75 @@ class Schema_Orchestrator {
 
         /*
          * Step 5
+         * Global schema overrides.
+         */
+        $global_overrides = apply_filters(
+            'schema_orchestrator_global_overrides',
+            [],
+            $post_id,
+            $context
+        );
+
+        if (is_array($global_overrides)) {
+
+            foreach ($graph as &$node) {
+
+                if (!is_array($node)) {
+                    continue;
+                }
+
+                /*
+                 * Match global overrides by @id.
+                 */
+                if (
+                    isset($node['@id']) &&
+                    isset(
+                        $global_overrides[
+                            $node['@id']
+                        ]
+                    ) &&
+                    is_array(
+                        $global_overrides[
+                            $node['@id']
+                        ]
+                    )
+                ) {
+
+                    $node =
+                        array_replace_recursive(
+                            $node,
+                            $global_overrides[
+                                $node['@id']
+                            ]
+                        );
+
+                    unset(
+                        $global_overrides[
+                            $node['@id']
+                        ]
+                    );
+                }
+            }
+
+            unset($node);
+
+            /*
+             * Append global nodes that
+             * were not found in the graph.
+             */
+            if (!empty($global_overrides)) {
+
+                $graph = array_merge(
+                    $graph,
+                    array_values(
+                        $global_overrides
+                    )
+                );
+            }
+        }
+
+        /*
+         * Step 6
          * Apply overrides.
          */
         $overrides =
@@ -263,7 +332,7 @@ class Schema_Orchestrator {
         }
 
         /*
-         * Step 6
+         * Step 7
          * Final filter.
          */
         $graph = apply_filters(
@@ -326,6 +395,74 @@ class Schema_Orchestrator {
                 $graph,
                 $extra_nodes
             );
+        }
+
+        /*
+         * Global schema overrides.
+         */
+        $global_overrides = apply_filters(
+            'schema_orchestrator_global_overrides',
+            [],
+            $post_id,
+            $context
+        );
+
+        if (is_array($global_overrides)) {
+
+            foreach ($graph as &$node) {
+
+                if (!is_array($node)) {
+                    continue;
+                }
+
+                /*
+                 * Match global overrides by @id.
+                 */
+                if (
+                    isset($node['@id']) &&
+                    isset(
+                        $global_overrides[
+                            $node['@id']
+                        ]
+                    ) &&
+                    is_array(
+                        $global_overrides[
+                            $node['@id']
+                        ]
+                    )
+                ) {
+
+                    $node =
+                        array_replace_recursive(
+                            $node,
+                            $global_overrides[
+                                $node['@id']
+                            ]
+                        );
+
+                    unset(
+                        $global_overrides[
+                            $node['@id']
+                        ]
+                    );
+                }
+            }
+
+            unset($node);
+
+            /*
+             * Append global nodes that
+             * were not found in the graph.
+             */
+            if (!empty($global_overrides)) {
+
+                $graph = array_merge(
+                    $graph,
+                    array_values(
+                        $global_overrides
+                    )
+                );
+            }
         }
 
         /*

@@ -21,7 +21,7 @@ if ( ! class_exists( 'Schema_Settings') ) :
             parent::__construct( 'so-schema-settings' );
             
             // add these settings to the schema 
-            add_filter( 'schema_orchestrator_additional_nodes', [ $this, 'add_to_schema' ], 10, 3 );
+            add_filter( 'schema_orchestrator_global_overrides', [ $this, 'add_to_schema' ], 10, 3 );
         }
         
         protected function defaults() {
@@ -87,7 +87,7 @@ if ( ! class_exists( 'Schema_Settings') ) :
         } // end : defaults 
         
         
-        public function add_to_schema( $nodes, $post_id, $context ) {
+        public function add_to_schema( $overrides, $post_id, $context ) {
             
             // get organization nodes
             $organization_nodes = null;
@@ -99,12 +99,12 @@ if ( ! class_exists( 'Schema_Settings') ) :
                 $organization_nodes = [];
             } 
 
-            // add organization to schema   
-            if ( is_array( $nodes ) && is_array( $organization_nodes ) ) {
-                $nodes = array_merge( $nodes, $organization_nodes );
+            // add organization to global schema overrides
+            if ( is_array( $overrides ) && is_array( $organization_nodes ) ) {
+                $overrides = array_replace_recursive( $overrides, $organization_nodes );
             }
             
-            return $nodes;
+            return $overrides;
 
         } // end : add_to_schema()
         
@@ -112,4 +112,3 @@ if ( ! class_exists( 'Schema_Settings') ) :
     } // end : class Schema_Settings
     
 endif;
-
