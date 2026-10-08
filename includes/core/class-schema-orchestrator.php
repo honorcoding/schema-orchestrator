@@ -1,528 +1,164 @@
 <?php
 /**
- * Schema Orchestrator
- * Core engine.
+ * Schema Orchestrator: the main class.
+ *
+ * It starts everything, finds out which SEO plugin is running, and connects
+ * to that plugin through the matching adapter.
+ *
+ * Which SEO plugin is used? The first active one in this order:
+ *   1. Yoast SEO
+ *   2. Rank Math SEO
+ * Developers can change the list with the "schema_orchestrator_adapters" filter.
  */
 
 namespace Schema_Orchestrator;
-use Schema_Orchestrator\Schema_Provider_Interface;
-use Schema_Orchestrator\Schema_Registry;
-use Schema_Orchestrator\Schema_Overrides;
-
-
-if (!defined('ABSPATH')) {
-    exit;
-}
-
-class Schema_Orchestrator {
-
-    /**
-     * Singleton instance.
-     *
-     * @var self|null
-     */
-    private static $instance = null;
-
-    /**
-     * Registered providers.
-     *
-     * @var Schema_Provider_Interface[]
-     */
-    private $providers = [];
-
-    /**
-     * Provider statistics.
-     *
-     * @var array
-     */
-    private $provider_stats = [];
-    
-    /**
-     * The last graph Yoast provided
-     * 
-     * @var array
-     */
-    private $last_graph = [];
-
-    /**
-     * Singleton.
-     */
-    public static function instance(): self {
-
-        if (null === self::$instance) {
-            self::$instance = new self();
-        }
-
-        return self::$instance;
-    }
-
-    /**
-     * Constructor.
-     */
-    private function __construct() {
-
-        add_action(
-            'init',
-            [$this, 'register_components']
-        );
-        
-        add_filter(
-            'wpseo_schema_graph',
-            [$this, 'filter_yoast_graph'],
-            999,
-            2
-        );       
-        
-    }
-
-    /**
-     * Register providers and schema nodes.
-     */
-    public function register_components(): void {
-
-        /**
-         * Allow third-party plugins
-         * to register schema nodes/providers.
-         */
-        do_action(
-            'schema_orchestrator_register'
-        );
-    }
-
-    /**
-     * Register a provider.
-     */
-    public function register_provider(
-        Schema_Provider_Interface $provider
-    ): void {
-
-        $this->providers[
-            $provider->get_name()
-        ] = $provider;
-    }
-
-    /**
-     * Get providers.
-     */
-    public function get_providers(): array {
-
-        return $this->providers;
-    }
-
-    /**
-     * Get provider statistics.
-     */
-    public function get_provider_stats(): array {
-
-        return $this->provider_stats;
-    }
-    
-    /**
-     * Get individual provider.
-     */
-    public function get_provider(
-        string $name
-    ): ?Schema_Provider_Interface {
-
-        return $this->providers[$name] ?? null;
-    }
-
-    /**
-     * Public API.
-     */
-    public static function get_graph(
-        int $post_id
-    ): array {
-
-        return self::instance()
-            ->build_graph($post_id);
-    }
-
-    /**
-     * Build final graph.
-     */
-    public function build_graph(
-        int $post_id
-    ): array {
-
-        /*
-         * Reset stats every run.
-         */
-        $this->provider_stats = [];
-
-        $graph = [];
-
-        $context = (object) [
-            'id' => $post_id,
-        ];
-
-        /*
-         * Step 1
-         * Collect provider graphs.
-         */
-        foreach ($this->providers as $provider) {
-
-            try {
-
-                $provider_graph =
-                    $provider->get_graph(
-                        $post_id
-                    );
-
-                if (is_array($provider_graph)) {
-
-                    /*
-                     * Store provider stats.
-                     */
-                    $this->provider_stats[
-                        $provider->get_name()
-                    ] = count(
-                        $provider_graph
-                    );
-
-                    $graph = array_merge(
-                        $graph,
-                        $provider_graph
-                    );
-                }
-
-            } catch (\Throwable $e) {
-
-                $this->provider_stats[
-                    $provider->get_name()
-                ] = 'ERROR';
-
-                so_debug()->log(
-                    sprintf(
-                        '[Schema Orchestrator] Provider "%s" failed: %s',
-                        $provider->get_name(),
-                        $e->getMessage()
-                    )
-                );
-            }
-        }
-
-        /*
-         * Step 2
-         * Pre-merge filter.
-         */
-        $graph = apply_filters(
-            'schema_orchestrator_pre_merge_graph',
-            $graph,
-            $post_id,
-            $context
-        );
-
-        /*
-         * Step 3
-         * Registered nodes.
-         */
-        $graph = array_merge(
-            $graph,
-            Schema_Registry::build_nodes(
-                $post_id,
-                $context
-            )
-        );
-
-        /*
-         * Step 4
-         * Additional nodes filter.
-         */
-        $extra_nodes = apply_filters(
-            'schema_orchestrator_additional_nodes',
-            [],
-            $post_id,
-            $context
-        );
-
-        if (is_array($extra_nodes)) {
-
-            $graph = array_merge(
-                $graph,
-                $extra_nodes
-            );
-        }
-
-        /*
-         * Step 5
-         * Global schema overrides.
-         */
-        $global_overrides = apply_filters(
-            'schema_orchestrator_global_overrides',
-            [],
-            $post_id,
-            $context
-        );
-
-        if (is_array($global_overrides)) {
-
-            foreach ($graph as &$node) {
-
-                if (!is_array($node)) {
-                    continue;
-                }
-
-                /*
-                 * Match global overrides by @id.
-                 */
-                if (
-                    isset($node['@id']) &&
-                    isset(
-                        $global_overrides[
-                            $node['@id']
-                        ]
-                    ) &&
-                    is_array(
-                        $global_overrides[
-                            $node['@id']
-                        ]
-                    )
-                ) {
-
-                    $node =
-                        array_replace_recursive(
-                            $node,
-                            $global_overrides[
-                                $node['@id']
-                            ]
-                        );
-
-                    unset(
-                        $global_overrides[
-                            $node['@id']
-                        ]
-                    );
-                }
-            }
-
-            unset($node);
-
-            /*
-             * Append global nodes that
-             * were not found in the graph.
-             */
-            if (!empty($global_overrides)) {
-
-                $graph = array_merge(
-                    $graph,
-                    array_values(
-                        $global_overrides
-                    )
-                );
-            }
-        }
-
-        /*
-         * Step 6
-         * Apply overrides.
-         */
-        $overrides =
-            Schema_Overrides::get(
-                $post_id
-            );
-
-        if (!empty($overrides)) {
-
-            $graph =
-                Schema_Overrides::apply(
-                    $graph,
-                    $overrides
-                );
-        }
-
-        /*
-         * Step 7
-         * Final filter.
-         */
-        $graph = apply_filters(
-            'schema_orchestrator_final_graph',
-            $graph,
-            $post_id,
-            $context
-        );
-
-        return $graph;
-    }
-
-    public function filter_yoast_graph(
-        $graph,
-        $context
-    ) {
-        $post_id = 0;
-
-        if (
-            is_object($context)
-            && isset($context->id)
-        ) {
-            $post_id = (int) $context->id;
-        }
-
-        /*
-         * Pre-merge hook.
-         */
-        $graph = apply_filters(
-            'schema_orchestrator_pre_merge_graph',
-            $graph,
-            $post_id,
-            $context
-        );
-
-        /*
-         * Registry nodes.
-         */
-        $graph = array_merge(
-            $graph,
-            Schema_Registry::build_nodes(
-                $post_id,
-                $context
-            )
-        );
-
-        /*
-         * Additional nodes.
-         */
-        $extra_nodes = apply_filters(
-            'schema_orchestrator_additional_nodes',
-            [],
-            $post_id,
-            $context
-        );
-
-        if (is_array($extra_nodes)) {
-
-            $graph = array_merge(
-                $graph,
-                $extra_nodes
-            );
-        }
-
-        /*
-         * Global schema overrides.
-         */
-        $global_overrides = apply_filters(
-            'schema_orchestrator_global_overrides',
-            [],
-            $post_id,
-            $context
-        );
-
-        if (is_array($global_overrides)) {
-
-            foreach ($graph as &$node) {
-
-                if (!is_array($node)) {
-                    continue;
-                }
-
-                /*
-                 * Match global overrides by @id.
-                 */
-                if (
-                    isset($node['@id']) &&
-                    isset(
-                        $global_overrides[
-                            $node['@id']
-                        ]
-                    ) &&
-                    is_array(
-                        $global_overrides[
-                            $node['@id']
-                        ]
-                    )
-                ) {
-
-                    $node =
-                        array_replace_recursive(
-                            $node,
-                            $global_overrides[
-                                $node['@id']
-                            ]
-                        );
-
-                    unset(
-                        $global_overrides[
-                            $node['@id']
-                        ]
-                    );
-                }
-            }
-
-            unset($node);
-
-            /*
-             * Append global nodes that
-             * were not found in the graph.
-             */
-            if (!empty($global_overrides)) {
-
-                $graph = array_merge(
-                    $graph,
-                    array_values(
-                        $global_overrides
-                    )
-                );
-            }
-        }
-
-        /*
-         * Overrides.
-         */
-        $overrides =
-            Schema_Overrides::get(
-                $post_id
-            );
-
-        if (!empty($overrides)) {
-
-            $graph =
-                Schema_Overrides::apply(
-                    $graph,
-                    $overrides
-                );
-        }
-
-        /*
-         * Final hook.
-         */
-        $graph = apply_filters(
-            'schema_orchestrator_final_graph',
-            $graph,
-            $post_id,
-            $context
-        );
-        
-        $this->last_graph = $graph;
-
-        return $graph;
-    }
-    
-    /**
-     * gets the last graph 
-     * 
-     * @return array
-     */
-    public function get_last_graph(): array {
-
-        return $this->last_graph;
-    }    
-
-    
-    /**
-     * Debug helper.
-     */
-    public static function debug(): array {
-
-        $instance = self::instance();
-
-        return [
-            'providers' =>
-                $instance->get_provider_stats(),
-            'total_nodes' =>
-                count(
-                    $instance->get_last_graph()
-                ),
-        ];
-    }    
-    
+
+defined( 'ABSPATH' ) || exit;
+
+final class Schema_Orchestrator {
+
+	/**
+	 * @var Schema_Orchestrator|null
+	 */
+	private static $instance = null;
+
+	/**
+	 * The adapter in use, or null when no supported SEO plugin is active.
+	 *
+	 * @var Schema_Adapter|null
+	 */
+	private $adapter = null;
+
+	/**
+	 * The last graph that was produced (handy when debugging).
+	 *
+	 * @var array
+	 */
+	private $last_graph = array();
+
+	public static function instance(): self {
+
+		if ( null === self::$instance ) {
+			self::$instance = new self();
+		}
+
+		return self::$instance;
+	}
+
+	private function __construct() {}
+
+	/**
+	 * Called once from the main plugin file.
+	 */
+	public function hook(): void {
+		add_action( 'plugins_loaded', array( $this, 'boot' ), 20 );
+	}
+
+	/**
+	 * Runs on "plugins_loaded", when every other plugin's code is available.
+	 */
+	public function boot(): void {
+
+		// Lets other plugins and themes register schema builders.
+		add_action( 'init', array( $this, 'fire_register_action' ), 5 );
+
+		// Sitewide settings feed the pipeline on every page, so always load them.
+		Schema_Settings::instance()->hook();
+
+		$this->adapter = $this->find_adapter();
+
+		if ( null !== $this->adapter ) {
+			$this->adapter->register( array( $this, 'process' ) );
+		}
+
+		if ( is_admin() ) {
+			( new Schema_Admin_Assets() )->hook();
+			( new Schema_Admin_Metabox() )->hook();
+			( new Schema_Admin_Settings_Page() )->hook();
+
+			add_action( 'admin_notices', array( $this, 'maybe_show_missing_plugin_notice' ) );
+		}
+	}
+
+	/**
+	 * Action: schema_orchestrator_register
+	 * The place for other code to call Schema_Registry::register_node().
+	 */
+	public function fire_register_action(): void {
+		do_action( 'schema_orchestrator_register' );
+	}
+
+	/**
+	 * Receives a graph from an adapter, runs the pipeline, returns the result.
+	 *
+	 * @param array          $graph   List of schema nodes.
+	 * @param Schema_Context $context Describes the current page.
+	 */
+	public function process( array $graph, Schema_Context $context ): array {
+
+		$this->last_graph = Schema_Pipeline::run( $graph, $context );
+
+		return $this->last_graph;
+	}
+
+	/**
+	 * Picks the first adapter whose SEO plugin is active.
+	 */
+	private function find_adapter(): ?Schema_Adapter {
+
+		$adapters = apply_filters(
+			'schema_orchestrator_adapters',
+			array(
+				new Schema_Adapter_Yoast(),
+				new Schema_Adapter_Rank_Math(),
+			)
+		);
+
+		if ( ! is_array( $adapters ) ) {
+			return null;
+		}
+
+		foreach ( $adapters as $adapter ) {
+			if ( $adapter instanceof Schema_Adapter && $adapter->is_active() ) {
+				return $adapter;
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * The adapter in use, or null.
+	 */
+	public function get_adapter(): ?Schema_Adapter {
+		return $this->adapter;
+	}
+
+	/**
+	 * The last graph produced during this request.
+	 */
+	public function get_last_graph(): array {
+		return $this->last_graph;
+	}
+
+	/**
+	 * Tell administrators why nothing happens when no SEO plugin is active.
+	 * Only shown on the Plugins screen and on this plugin's own settings page.
+	 */
+	public function maybe_show_missing_plugin_notice(): void {
+
+		if ( null !== $this->adapter || ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+
+		if ( ! $screen || ! in_array( $screen->id, array( 'plugins', 'settings_page_' . Schema_Admin_Settings_Page::SLUG ), true ) ) {
+			return;
+		}
+
+		echo '<div class="notice notice-warning"><p>'
+			. esc_html__( 'Schema Orchestrator needs Yoast SEO or Rank Math SEO. Neither is active, so no schema is being changed.', 'schema-orchestrator' )
+			. '</p></div>';
+	}
 }

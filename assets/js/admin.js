@@ -1,73 +1,69 @@
-// =========================================
-// admin.js - javascript for admin pages
-// =========================================
+/*
+ * Schema Orchestrator: admin script.
+ *
+ * Shows a live "valid / not valid" message under every JSON box.
+ * This is only a convenience. The server checks the JSON again when saving.
+ */
+( function () {
+	'use strict';
 
-document.addEventListener(
-    'DOMContentLoaded',
-    function () {
+	function check( textarea, status ) {
 
-        const button =
-            document.getElementById(
-                'schema-orchestrator-preview'
-            );
+		var text = textarea.value.trim();
+		var data;
 
-        if (!button) {
-            return;
-        }
+		status.className = 'so-json-status';
 
-        button.addEventListener(
-            'click',
-            async function () {
+		if ( text === '' ) {
+			status.textContent = 'Empty: no changes will be made.';
+			return;
+		}
 
-                const output =
-                    document.getElementById(
-                        'schema-orchestrator-preview-output'
-                    );
+		try {
+			data = JSON.parse( text );
+		} catch ( error ) {
+			status.textContent = 'Not valid JSON: ' + error.message;
+			status.className += ' is-error';
+			return;
+		}
 
-                const postId =
-                    document.getElementById(
-                        'post_ID'
-                    ).value;
+		if ( data === null || typeof data !== 'object' || Array.isArray( data ) ) {
+			status.textContent = 'The top level must be an object, like { "WebSite": { "name": "My site" } }.';
+			status.className += ' is-error';
+			return;
+		}
 
-                output.value = 'Loading...';
+		status.textContent = 'Valid JSON.';
+		status.className += ' is-ok';
+	}
 
-                const body =
-                    new URLSearchParams();
+	function setup( textarea ) {
 
-                body.append(
-                    'action',
-                    'schema_orchestrator_preview'
-                );
+		var status = textarea.nextElementSibling;
 
-                body.append(
-                    'post_id',
-                    postId
-                );
+		if ( ! status || status.className.indexOf( 'so-json-status' ) === -1 ) {
+			return;
+		}
 
-                body.append(
-                    'nonce',
-                    SchemaOrchestrator.nonce
-                );
+		var timer = null;
 
-                const response =
-                    await fetch(
-                        SchemaOrchestrator.ajax_url,
-                        {
-                            method: 'POST',
-                            body
-                        }
-                    );
+		textarea.addEventListener( 'input', function () {
+			window.clearTimeout( timer );
+			timer = window.setTimeout( function () {
+				check( textarea, status );
+			}, 300 );
+		} );
 
-                const json =
-                    await response.json();
+		check( textarea, status );
+	}
 
-                output.value =
-                    JSON.stringify(
-                        json.data,
-                        null,
-                        2
-                    );
-            }
-        );
-    }
-);
+	function init() {
+		Array.prototype.forEach.call( document.querySelectorAll( 'textarea[data-so-json]' ), setup );
+	}
+
+	if ( document.readyState === 'loading' ) {
+		document.addEventListener( 'DOMContentLoaded', init );
+	} else {
+		init();
+	}
+}() );

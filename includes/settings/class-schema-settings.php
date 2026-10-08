@@ -1,114 +1,133 @@
 <?php
-// =========================================
-// Schema_Settings (class) : class-schema-settings.php 
-// ----------------------------------------
-// Purpose: 
-//     handles schema settings for custom features
-// =========================================
+/**
+ * Sitewide settings: one block of override JSON that applies to every page
+ * (typically the Organization details).
+ *
+ * It uses the exact same format as the per-page meta box, and is applied
+ * through the "schema_orchestrator_global_overrides" filter.
+ *
+ * Upgrading from 1.x: the old option "so-schema-settings" is still read until
+ * the first time the new Settings page is saved.
+ */
 
-namespace Schema_Orchestrator\Settings; 
-use Schema_Orchestrator\Settings\Settings_Controller;
+namespace Schema_Orchestrator;
 
+defined( 'ABSPATH' ) || exit;
 
-defined( 'ABSPATH' ) || exit;   // no access for random strangers
+final class Schema_Settings {
 
+	const OPTION        = 'schema_orchestrator_settings';
+	const LEGACY_OPTION = 'so-schema-settings';
 
-if ( ! class_exists( 'Schema_Settings') ) :
+	/**
+	 * @var Schema_Settings|null
+	 */
+	private static $instance = null;
 
-    class Schema_Settings extends Settings_Controller {
-        
-        public function __construct() {
-            parent::__construct( 'so-schema-settings' );
-            
-            // add these settings to the schema 
-            add_filter( 'schema_orchestrator_global_overrides', [ $this, 'add_to_schema' ], 10, 3 );
-        }
-        
-        protected function defaults() {
-            
-            $defaults = [
-                
-                'organization' => 
-                
-                    // organization schema json-ld
-                    <<<END
-                    {
-                        "https://asdn.org/#organization": {
-                            "@type": [
-                                "Organization",
-                                "EducationalOrganization"
-                            ],
-                            "alternateName": "ASDN",
-                            "description": "Alaska\u2019s trusted source for high quality professional learning for educators for over 40 years.",
-                            "foundingDate": "1983",
-                            "parentOrganization": {
-                                "@type": "Organization",
-                                "name": "Alaska Council of School Administrators",
-                                "url": "https://alaskaacsa.org/"
-                            },
-                            "address": {
-                                "@type": "PostalAddress",
-                                "streetAddress": "2204 Douglas Highway, Suite 100",
-                                "addressLocality": "Douglas",
-                                "addressRegion": "AK",
-                                "postalCode": "99824",
-                                "addressCountry": "US"
-                            },
-                            "contactPoint": {
-                                "@type": "ContactPoint",
-                                "contactType": "customer service",
-                                "email": "asdn@alaskaacsa.org",
-                                "telephone": "+1-907-364-3809",
-                                "areaServed": "US-AK"
-                            },
-                            "sameAs": [
-                                "https://www.facebook.com/AlaskaStaffDevelopmentNetwork",
-                                "https://www.linkedin.com/company/alaska-staff-development-network"
-                            ],
-                            "knowsAbout": [
-                                "Professional learning for educators",
-                                "Teacher professional development",
-                                "Educational leadership",
-                                "School improvement",
-                                "Instructional coaching",
-                                "Curriculum development",
-                                "Education conferences",
-                                "K-12 education",
-                                "Alaska education"
-                            ]
-                        }
-                    }
-                    END,                
-                
-            ];
-            
-            return $defaults;
+	/**
+	 * Parsed sitewide overrides, cached for the request.
+	 *
+	 * @var array|null
+	 */
+	private $parsed = null;
 
-        } // end : defaults 
-        
-        
-        public function add_to_schema( $overrides, $post_id, $context ) {
-            
-            // get organization nodes
-            $organization_nodes = null;
-            if ( isset( $this->options ) && isset( $this->options['organization'] ) ) {
-                $organization_nodes = json_decode( $this->options['organization'], true );                
-            }
-            
-            if ( ! $organization_nodes ) {
-                $organization_nodes = [];
-            } 
+	public static function instance(): self {
 
-            // add organization to global schema overrides
-            if ( is_array( $overrides ) && is_array( $organization_nodes ) ) {
-                $overrides = array_replace_recursive( $overrides, $organization_nodes );
-            }
-            
-            return $overrides;
+		if ( null === self::$instance ) {
+			self::$instance = new self();
+		}
 
-        } // end : add_to_schema()
-        
-        
-    } // end : class Schema_Settings
-    
-endif;
+		return self::$instance;
+	}
+
+	private function __construct() {}
+
+	public function hook(): void {
+		add_filter( 'schema_orchestrator_global_overrides', array( $this, 'add_global_overrides' ), 10, 1 );
+	}
+
+	/**
+	 * The JSON text exactly as it should appear in the textarea.
+	 */
+	public function get_global_json(): string {
+
+		$options = get_option( self::OPTION, null );
+
+		if ( is_array( $options ) ) {
+			return isset( $options['global_json'] ) ? (string) $options['global_json'] : '';
+		}
+
+		// Nothing saved with the new settings yet: fall back to version 1.x data.
+		$legacy = get_option( self::LEGACY_OPTION, array() );
+
+		if ( is_array( $legacy ) && isset( $legacy['organization'] ) && is_string( $legacy['organization'] ) ) {
+			return $legacy['organization'];
+		}
+
+		return '';
+	}
+
+	/**
+	 * Check and save new sitewide JSON.
+	 *
+	 * @return string An error message, or an empty string when saved.
+	 */
+	public function save_global_json( string $raw ): string {
+
+		$result = Schema_Json_Input::parse_overrides( $raw );
+
+		if ( '' !== $result['error'] ) {
+			return $result['error'];
+		}
+
+		update_option(
+			self::OPTION,
+			array( 'global_json' => Schema_Json_Input::to_pretty_json( $result['data'] ) )
+		);
+
+		$this->parsed = null;
+
+		return '';
+	}
+
+	/**
+	 * The sitewide overrides as an array. Bad JSON gives an empty array
+	 * (and a line in the debug log) instead of a broken page.
+	 */
+	public function get_global_overrides(): array {
+
+		if ( null !== $this->parsed ) {
+			return $this->parsed;
+		}
+
+		$result = Schema_Json_Input::parse_overrides( $this->get_global_json() );
+
+		if ( '' !== $result['error'] ) {
+			Schema_Logger::log( 'Sitewide JSON ignored: ' . $result['error'] );
+		}
+
+		$this->parsed = $result['data'];
+
+		return $this->parsed;
+	}
+
+	/**
+	 * Filter callback: add the sitewide overrides to whatever other code supplied.
+	 *
+	 * @param mixed $overrides Overrides collected so far.
+	 */
+	public function add_global_overrides( $overrides ) {
+
+		$mine = $this->get_global_overrides();
+
+		if ( array() === $mine ) {
+			return $overrides;
+		}
+
+		if ( ! is_array( $overrides ) || array() === $overrides ) {
+			return $mine;
+		}
+
+		return Schema_Overrides::combine( $overrides, $mine );
+	}
+}

@@ -1,295 +1,198 @@
 <?php
 /**
- * Schema Overrides
- * Overrides other schema tools. 
+ * Overrides: the JSON "change list" an editor types in.
+ *
+ * Format (all parts optional):
+ *
+ *   {
+ *     "WebSite":                    { "name": "New name" },    <- every node of this @type
+ *     "https://example.com/#org":   { "name": "Acme" },        <- the node with this @id (created if missing)
+ *     "__append":                   [ { "@type": "Event" } ],  <- extra nodes to add
+ *     "__remove":                   [ "BreadcrumbList" ]       <- @types or @ids to delete
+ *   }
+ *
+ * Order of work: __append, then changes by @type / @id, then __remove.
  */
-
 
 namespace Schema_Orchestrator;
 
+defined( 'ABSPATH' ) || exit;
 
-if (!defined('ABSPATH')) {
-    exit;
-}
+final class Schema_Overrides {
 
-class Schema_Overrides {
+	const META_KEY   = '_schema_orchestrator_overrides';
+	const APPEND_KEY = '__append';
+	const REMOVE_KEY = '__remove';
 
-    const META_KEY =
-        '_schema_orchestrator_overrides';
+	/**
+	 * Overrides saved on one post.
+	 */
+	public static function get( int $post_id ): array {
 
-    /**
-     * Get overrides.
-     */
-    public static function get(
-        int $post_id
-    ): array {
+		$overrides = get_post_meta( $post_id, self::META_KEY, true );
 
-        $overrides = get_post_meta(
-            $post_id,
-            self::META_KEY,
-            true
-        );
+		return is_array( $overrides ) ? $overrides : array();
+	}
 
-        return is_array($overrides)
-            ? $overrides
-            : [];
-    }
+	/**
+	 * Save overrides on one post. An empty array deletes them.
+	 */
+	public static function save( int $post_id, array $overrides ): void {
 
-    /**
-     * Save overrides.
-     */
-    public static function save(
-        int $post_id,
-        array $overrides
-    ): void {
+		if ( array() === $overrides ) {
+			delete_post_meta( $post_id, self::META_KEY );
+			return;
+		}
 
-        update_post_meta(
-            $post_id,
-            self::META_KEY,
-            $overrides
-        );
-    }
+		// WordPress removes one level of backslashes when saving meta, so add them first.
+		update_post_meta( $post_id, self::META_KEY, wp_slash( $overrides ) );
+	}
 
-    /**
-     * Apply schema overrides.
-     */
-    public static function apply(
-        array $graph,
-        array $overrides
-    ): array {
+	/**
+	 * Apply a set of overrides to a graph and return the new graph.
+	 */
+	public static function apply( array $graph, array $overrides ): array {
 
-        foreach ($overrides as $key => $override) {
+		// Typed-in text is never trusted: strip HTML so it cannot break out of the <script> tag.
+		$overrides = Schema_Json_Input::clean_strings( $overrides );
+		$graph     = array_values( $graph );
 
-            /*
-             * Ignore invalid override entries.
-             */
-            if (
-                !is_string($key) ||
-                !is_array($override)
-            ) {
-                continue;
-            }
+		// 1. Extra nodes.
+		if ( isset( $overrides[ self::APPEND_KEY ] ) ) {
+			$graph = array_merge( $graph, Schema_Graph::to_node_list( $overrides[ self::APPEND_KEY ] ) );
+		}
 
-            /*
-             * -------------------------------------------------
-             * 1. TYPE-BASED OVERRIDE
-             * -------------------------------------------------
-             *
-             * Example:
-             *
-             * "WebPage": {
-             *     "description": "..."
-             * }
-             *
-             * Match existing nodes by @type.
-             */
-            if (
-                self::is_schema_type(
-                    $key
-                )
-            ) {
+		// 2. Changes by @type or @id.
+		foreach ( $overrides as $key => $override ) {
 
-                foreach (
-                    $graph as &$node
-                ) {
+			$key = (string) $key;
 
-                    if (
-                        !is_array($node) ||
-                        !isset($node['@type'])
-                    ) {
-                        continue;
-                    }
+			if ( self::APPEND_KEY === $key || self::REMOVE_KEY === $key ) {
+				continue;
+			}
 
-                    $types =
-                        (array)
-                        $node['@type'];
+			if ( ! is_array( $override ) || Schema_Graph::is_list( $override ) ) {
+				Schema_Logger::log( sprintf( 'Override "%s" ignored: it must be an object with at least one property.', $key ) );
+				continue;
+			}
 
-                    /*
-                     * Normalize full Schema.org
-                     * URLs to short type names.
-                     *
-                     * Example:
-                     *
-                     * http://schema.org/WebPage
-                     *
-                     * becomes:
-                     *
-                     * WebPage
-                     */
-                    $normalized_types = [];
+			if ( Schema_Graph::is_type_key( $key ) ) {
+				$graph = self::apply_to_type( $graph, $key, $override );
+			} else {
+				$graph = self::apply_to_id( $graph, $key, $override );
+			}
+		}
 
-                    foreach (
-                        $types as $type
-                    ) {
+		// 3. Removals.
+		if ( isset( $overrides[ self::REMOVE_KEY ] ) && is_array( $overrides[ self::REMOVE_KEY ] ) ) {
+			$graph = self::remove( $graph, $overrides[ self::REMOVE_KEY ] );
+		}
 
-                        $normalized_types[] =
-                            self::normalize_schema_type(
-                                $type
-                            );
-                    }
+		return array_values( $graph );
+	}
 
-                    /*
-                     * Does this node match
-                     * the override type?
-                     */
-                    if (
-                        in_array(
-                            $key,
-                            $normalized_types,
-                            true
-                        )
-                    ) {
+	/**
+	 * Combine two sets of overrides into one. Used to stack sitewide
+	 * settings on top of what developer filters supplied.
+	 */
+	public static function combine( array $first, array $second ): array {
 
-                        $node =
-                            array_replace_recursive(
-                                $node,
-                                $override
-                            );
-                    }
-                }
+		$append = array_merge(
+			Schema_Graph::to_node_list( isset( $first[ self::APPEND_KEY ] ) ? $first[ self::APPEND_KEY ] : array() ),
+			Schema_Graph::to_node_list( isset( $second[ self::APPEND_KEY ] ) ? $second[ self::APPEND_KEY ] : array() )
+		);
 
-                unset($node);
+		$remove = array_merge(
+			isset( $first[ self::REMOVE_KEY ] ) ? (array) $first[ self::REMOVE_KEY ] : array(),
+			isset( $second[ self::REMOVE_KEY ] ) ? (array) $second[ self::REMOVE_KEY ] : array()
+		);
 
-                /*
-                 * Do not treat a type name
-                 * as an @id.
-                 */
-                continue;
-            }
+		unset(
+			$first[ self::APPEND_KEY ],
+			$first[ self::REMOVE_KEY ],
+			$second[ self::APPEND_KEY ],
+			$second[ self::REMOVE_KEY ]
+		);
 
+		$combined = Schema_Graph::merge( $first, $second );
 
-            /*
-             * -------------------------------------------------
-             * 2. ID-BASED OVERRIDE
-             * -------------------------------------------------
-             *
-             * Example:
-             *
-             * "https://example.com/#faq": {
-             *     "@type": "FAQPage"
-             * }
-             *
-             * If the ID exists:
-             *     Modify it.
-             *
-             * If the ID does not exist:
-             *     Create it.
-             */
-            $found = false;
+		if ( $append ) {
+			$combined[ self::APPEND_KEY ] = $append;
+		}
 
-            foreach (
-                $graph as &$node
-            ) {
+		if ( $remove ) {
+			$combined[ self::REMOVE_KEY ] = array_values( array_unique( $remove ) );
+		}
 
-                if (
-                    !is_array($node) ||
-                    !isset($node['@id'])
-                ) {
-                    continue;
-                }
+		return $combined;
+	}
 
-                if (
-                    $node['@id'] !== $key
-                ) {
-                    continue;
-                }
+	/**
+	 * Change every node that has the given @type.
+	 */
+	private static function apply_to_type( array $graph, string $type, array $override ): array {
 
-                /*
-                 * Existing node found.
-                 */
-                $node =
-                    array_replace_recursive(
-                        $node,
-                        $override
-                    );
+		foreach ( $graph as $index => $node ) {
+			if ( is_array( $node ) && Schema_Graph::has_type( $node, $type ) ) {
+				$graph[ $index ] = Schema_Graph::merge( $node, $override );
+			}
+		}
 
-                $found = true;
+		return $graph;
+	}
 
-                break;
-            }
+	/**
+	 * Change the node with the given @id, or create it if it does not exist.
+	 */
+	private static function apply_to_id( array $graph, string $id, array $override ): array {
 
-            unset($node);
+		$found = false;
 
+		foreach ( $graph as $index => $node ) {
+			if ( is_array( $node ) && Schema_Graph::get_id( $node ) === $id ) {
+				$graph[ $index ] = Schema_Graph::merge( $node, $override );
+				$found           = true;
+			}
+		}
 
-            /*
-             * -------------------------------------------------
-             * 3. CREATE NEW NODE
-             * -------------------------------------------------
-             */
-            if (!$found) {
+		if ( ! $found ) {
+			$new_node        = Schema_Graph::merge( array(), $override );
+			$new_node['@id'] = $id;
+			$graph[]         = $new_node;
+		}
 
-                $new_node =
-                    $override;
+		return $graph;
+	}
 
-                /*
-                 * Ensure the node has
-                 * the requested @id.
-                 */
-                $new_node['@id'] =
-                    $key;
+	/**
+	 * Delete nodes by @type ("BreadcrumbList") or by @id ("https://...").
+	 */
+	private static function remove( array $graph, array $targets ): array {
 
-                $graph[] =
-                    $new_node;
-            }
-        }
+		foreach ( $targets as $target ) {
 
-        return $graph;
-    }
+			if ( ! is_string( $target ) || '' === $target ) {
+				continue;
+			}
 
-    /**
-     * Determine whether a key is a Schema.org type.
-     */
-    private static function is_schema_type(
-        string $key
-    ): bool {
+			$by_type = Schema_Graph::is_type_key( $target );
 
-        /*
-         * Common Schema.org type names
-         * are simple identifiers such as:
-         *
-         * WebPage
-         * Organization
-         * Person
-         * Product
-         * FAQPage
-         * Event
-         *
-         * IDs are generally URLs.
-         */
-        return !filter_var(
-            $key,
-            FILTER_VALIDATE_URL
-        );
-    }
+			foreach ( $graph as $index => $node ) {
 
-    /**
-     * Normalize a Schema.org type.
-     */
-    private static function normalize_schema_type(
-        string $type
-    ): string {
+				if ( ! is_array( $node ) ) {
+					continue;
+				}
 
-        /*
-         * Convert:
-         *
-         * http://schema.org/WebPage
-         *
-         * to:
-         *
-         * WebPage
-         */
-        $type =
-            str_replace(
-                [
-                    'http://schema.org/',
-                    'https://schema.org/'
-                ],
-                '',
-                $type
-            );
+				$matches = $by_type
+					? Schema_Graph::has_type( $node, $target )
+					: Schema_Graph::get_id( $node ) === $target;
 
-        return $type;
-    }
+				if ( $matches ) {
+					unset( $graph[ $index ] );
+				}
+			}
+		}
 
-
+		return array_values( $graph );
+	}
 }

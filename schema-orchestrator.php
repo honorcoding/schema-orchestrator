@@ -1,60 +1,21 @@
 <?php
 /**
  * Plugin Name: Schema Orchestrator
- * Description: Schema orchestration framework for WordPress. Works with YoastSEO plugin.
- * Version: 1.2.2
- * Author: Honor Coding
- * Author URI: https://honorcoding.com 
+ * Description: Add, change and remove Schema.org (JSON-LD) data on top of Yoast SEO or Rank Math SEO.
+ * Version:     2.0.0
+ * Requires PHP: 7.4
+ * Author:      Honor Coding
+ * Author URI:  https://honorcoding.com
+ * Text Domain: schema-orchestrator
  */
 
-if (!defined('ABSPATH')) {
-    exit;
-}
+defined( 'ABSPATH' ) || exit;
 
+define( 'SCHEMA_ORCHESTRATOR_VERSION', '2.0.0' );
+define( 'SCHEMA_ORCHESTRATOR_PATH', plugin_dir_path( __FILE__ ) );
+define( 'SCHEMA_ORCHESTRATOR_URL', plugin_dir_url( __FILE__ ) );
 
+require_once SCHEMA_ORCHESTRATOR_PATH . 'includes/loader.php';
 
-// ------------------------------------------
-// PLUGIN CONSTANTS
-// ------------------------------------------
-
-define( 'SCHEMA_ORCHESTRATOR_PATH', plugin_dir_path(__FILE__) );
-define( 'SCHEMA_ORCHESTRATOR_URL', plugin_dir_url(__FILE__) );
-
-// plugin log folder (requires .htaccess : "deny from all" on folder) 
-define('SCHEMA_ORCHESTRATOR_LOG_PATH', SCHEMA_ORCHESTRATOR_PATH . 'logs/');
-
-
-
-// ------------------------------------------
-// PLUGIN CONFIG 
-// ------------------------------------------
-
-require_once SCHEMA_ORCHESTRATOR_PATH . 'includes/config.php';
-
-
-
-// ------------------------------------------
-// CORE SCHEMA RESOURCES
-// ------------------------------------------
-
-require_once SCHEMA_ORCHESTRATOR_PATH . 'includes/core/config.php';
-
-
-
-// ------------------------------------------
-// ADMIN RESOURCES
-// ------------------------------------------
-
-if ( is_admin() ) { 
-    
-    require_once SCHEMA_ORCHESTRATOR_PATH . 'includes/admin/admin.php';
-
-}
-
-
-
-// ------------------------------------------
-// TESTING RESOURCES
-// ------------------------------------------
-
-//require_once SCHEMA_ORCHESTRATOR_PATH . 'includes/qa/test.php';
+// Everything else starts on "plugins_loaded", after Yoast / Rank Math have loaded too.
+\Schema_Orchestrator\Schema_Orchestrator::instance()->hook();

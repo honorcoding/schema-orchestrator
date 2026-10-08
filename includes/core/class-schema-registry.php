@@ -1,70 +1,59 @@
 <?php
 /**
- * Schema Registry :
- * This is the extension API.
+ * Schema Registry: the extension API for plugins and themes.
+ *
+ * A callback registered here says "I know how to build this kind of schema,
+ * call me for every page". It receives ( int $post_id, Schema_Context $context )
+ * and returns one node or a list of nodes.
  */
-
 
 namespace Schema_Orchestrator;
 
+defined( 'ABSPATH' ) || exit;
 
-if (!defined('ABSPATH')) {
-    exit;
-}
+final class Schema_Registry {
 
-class Schema_Registry {
+	/**
+	 * @var array<string, callable>
+	 */
+	private static $nodes = array();
 
-    /**
-     * Registered node builders.
-     *
-     * @var array
-     */
-    private static $nodes = [];
+	/**
+	 * Register (or replace) a node builder.
+	 */
+	public static function register_node( string $name, callable $callback ): void {
+		self::$nodes[ $name ] = $callback;
+	}
 
-    /**
-     * Register node callback.
-     */
-    public static function register_node( string $name, callable $callback ): void {
-        self::$nodes[$name] = $callback;
-    }
+	public static function unregister_node( string $name ): void {
+		unset( self::$nodes[ $name ] );
+	}
 
-    /**
-     * Get registered callbacks.
-     */
-    public static function get_nodes(): array {
-        return self::$nodes;
-    }
+	/**
+	 * @return array<string, callable>
+	 */
+	public static function get_nodes(): array {
+		return self::$nodes;
+	}
 
-    /**
-     * Build nodes.
-     */
-    public static function build_nodes( int $post_id, $context = null ): array {
+	/**
+	 * Run every registered callback and collect the nodes.
+	 * A callback that fails is logged and skipped; it never breaks the page.
+	 */
+	public static function build_nodes( Schema_Context $context ): array {
 
-        $nodes = [];
+		$nodes = array();
 
-        foreach (self::$nodes as $name => $callback) {
+		foreach ( self::$nodes as $name => $callback ) {
 
-            try {
+			try {
+				$result = call_user_func( $callback, $context->id, $context );
+				$nodes  = array_merge( $nodes, Schema_Graph::to_node_list( $result ) );
+			} catch ( \Throwable $e ) {
+				Schema_Logger::log( sprintf( 'Registered node "%s" failed: %s', $name, $e->getMessage() ) );
+			}
+		}
 
-                $result = call_user_func( $callback, $post_id, $context );
-
-                if (is_array($result)) {
-                    $nodes = array_merge( $nodes, $result );                    
-                }
-
-            } catch (\Throwable $e) {
-
-                so_debug()->log(
-                    sprintf(
-                        '[Schema Orchestrator] Node "%s" failed: %s',
-                        $name,
-                        $e->getMessage()
-                    )
-                );
-                
-            }
-        }
-
-        return $nodes;
-    }
+		return $nodes;
+	}
 }
